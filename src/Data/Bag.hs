@@ -163,6 +163,14 @@ rModifyM (Bag g r v) f = do
           M.write v i l
           modifyPRef r (subtract 1)
 
+-- | Helper to only modify when @b@ is 'True'.
+modifyWhen :: Monad m => Bool -> m (Modify a) -> m (Modify a)
+modifyWhen b a = if b then a else return Keep
+
+-- | Helper to only modify when @b@ is 'False'.
+modifyUnless :: Monad m => Bool -> m (Modify a) -> m (Modify a)
+modifyUnless b a = if b then return Keep else a
+
 elem :: (PrimMonad m, Eq a, M.Unbox a) => Bag m a -> a -> m Bool
 elem bag a = do
   v <- unsafeFreezeBag bag
