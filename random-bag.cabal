@@ -15,16 +15,18 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Data.RandomBag
   -- other-modules:       
-  other-extensions:    LambdaCase,
-    DeriveGeneric,
-    GeneralizedNewtypeDeriving,
+  other-extensions:
+    LambdaCase
+    DeriveGeneric
+    GeneralizedNewtypeDeriving
     DeriveDataTypeable
   build-depends:
     base >=4.7 && <4.8,
     vector >=0.10 && <0.11,
     vector-binary-instances >=0.2 && <0.3,
-    pref >=0.1 && <0.2,
     primitive >=0.5 && <0.6,
+    primitive-ref,
+    deepseq,
     pcg-random >= 0.1.0.1
   hs-source-dirs:      src
   default-language:    Haskell2010
