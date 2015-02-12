@@ -13,7 +13,7 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Data.Bag
+  exposed-modules:     Data.RandomBag
   -- other-modules:       
   other-extensions:    LambdaCase,
     DeriveGeneric,
