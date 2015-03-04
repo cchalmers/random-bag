@@ -1,6 +1,6 @@
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
@@ -22,16 +22,16 @@
 
 module Data.RandomBag where
 
+import           Control.DeepSeq
 import           Control.Monad
 import           Control.Monad.Primitive
 import           Control.Monad.ST
 import           Data.Data
 import           Data.PRef
 import qualified Data.Vector.Binary          ()
-import           Data.Vector.Unboxed         (Vector, Unbox)
+import           Data.Vector.Unboxed         (Unbox, Vector)
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as M
-import Control.DeepSeq
 
 import           System.Random.PCG.Class
 
@@ -63,7 +63,7 @@ resize (Bag _ r _) = \i -> writePRef r i
 -- internal ------------------------------------------------------------
 
 bagUniform :: PrimMonad m => Bag m a -> Int -> m Int
-bagUniform (Bag g _ _) i = uniformR (0, i - 1) g
+bagUniform (Bag g _ _) i = uniformB i g
 {-# INLINE bagUniform #-}
 
 unsafeRead :: (PrimMonad m, Unbox a) => Bag m a -> Int -> m a
@@ -83,9 +83,9 @@ withRandom (Bag g r mv) f = do
   if n == 0
     then return Nothing
     else do
-      i <- uniformR (0, n - 1) g
+      i <- uniformB n g
       b <- f mv i n
-      return (Just $! b)
+      return $! Just $! b
 
 vRemove :: (PrimMonad m, Unbox a)
         => M.MVector (PrimState m) a
@@ -93,6 +93,8 @@ vRemove :: (PrimMonad m, Unbox a)
         -> Int -- element to remove
         -> m ()
 vRemove mv i n = M.read mv (n - 1) >>= M.write mv i
+
+-- Exposed -------------------------------------------------------------
 
 -- | Take a random element from the bag.
 luckyDip :: (PrimMonad m, Unbox a) => Bag m a -> m (Maybe a)
@@ -314,9 +316,6 @@ unsafeFreezeBag (Bag _ r v) = do
   n <- readPRef r
   let v' = M.slice 0 n v
   V.unsafeFreeze v'
-
-printBag :: (Unbox a, Show a) => Bag IO a -> IO ()
-printBag = withVectorM print
 
 -- | Thaw a vector with a `Generator` and initial increase factor for
 --   the internal vector. This allows inserting elements.
