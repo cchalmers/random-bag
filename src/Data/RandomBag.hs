@@ -8,7 +8,7 @@
 
 -- |
 --  Module      : Data.Bag
---  Copyright   : Copyright (C) 2015 Christopher Chalmers
+--  Copyright   : Copyright (c) 2015 Christopher Chalmers
 --  License     : BSD3
 --
 --  Maintainer  : Christopher Chalmers <c.chalmers@me.com>
@@ -321,10 +321,10 @@ unsafeFreezeBag (Bag _ r v) = do
 --   the internal vector. This allows inserting elements.
 thawBag :: (PrimMonad m, Generator g m, Unbox a) => g -> Double -> V.Vector a -> m (Bag m a)
 thawBag g x v = do
-  m <- V.thaw v
+  m  <- V.thaw v
   m' <- M.grow m $ ceiling (fromIntegral (V.length v) * x + 10)
-  r <- newPRef $ V.length v
-  return $ Bag g r m'
+  r  <- newPRef $ V.length v
+  return $! Bag g r m'
 
 -- ------------------------------------------------------------------------
 -- -- Internal
