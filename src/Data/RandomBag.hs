@@ -27,18 +27,18 @@ import           Control.Monad
 import           Control.Monad.Primitive
 import           Control.Monad.ST
 import           Data.Data
-import           Data.PRef
-import qualified Data.Vector.Binary          ()
+import           Data.Primitive.ByteArray
 import           Data.Vector.Unboxed         (Unbox, Vector)
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as M
+import           Foreign.Storable            (sizeOf)
 
 import           System.Random.PCG.Class
 
 data Bag m a where
   Bag :: Generator g m
       => !g
-      -> !(PRef (PrimState m) Int)
+      -> !(MutableByteArray (PrimState m))
       -> !(M.MVector (PrimState m) a)
       -> Bag m a
   deriving Typeable
@@ -53,11 +53,11 @@ type IOBag   = Bag IO
 type STBag s = Bag (ST s)
 
 size :: PrimMonad m => Bag m a -> m Int
-size (Bag _ r _) = readPRef r
+size (Bag _ r _) = readByteArray r 0
 {-# INLINE size #-}
 
 resize :: PrimMonad m => Bag m a -> Int -> m ()
-resize (Bag _ r _) = \i -> writePRef r i
+resize (Bag _ r _) = \i -> writeByteArray r 0 i
 {-# INLINE resize #-}
 
 -- internal ------------------------------------------------------------
@@ -79,7 +79,7 @@ withRandom :: PrimMonad m
            -> (M.MVector (PrimState m) a -> Int -> Int -> m b)
            -> m (Maybe b)
 withRandom (Bag g r mv) f = do
-  n <- readPRef r
+  n <- readByteArray r 0
   if n == 0
     then return Nothing
     else do
@@ -230,7 +230,7 @@ find f = withVector (V.find f)
 findModify :: (PrimMonad m, Unbox a)
            => Bag m a -> (a -> Bool) -> (a -> Modify a) -> m ()
 findModify bag@(Bag _ r mv) p f = do
-  n  <- readPRef r
+  n  <- readByteArray r 0
   mi <- V.findIndex p `liftM` unsafeFreezeBag bag
   case mi of
     Just i  -> M.unsafeRead mv i >>= \a ->
@@ -245,7 +245,7 @@ findModify bag@(Bag _ r mv) p f = do
 -- findModifyAll :: (PrimMonad m, Unbox a)
 --            => Bag m a -> (a -> Bool) -> (a -> Modify a) -> m ()
 -- findModifyAll bag@(Bag _ r mv) p f = do
---   n  <- readPRef r
+--   n  <- readByteArray 0 r
 --   is <- V.findIndicies p `liftM` unsafeFreezeBag bag
 --   forM_ is $ \i -> M.unsafeRead mv i >>= \a ->
 --       case f a of
@@ -266,7 +266,7 @@ unsafeRandomShuffle = unsafeRandomShuffleN maxBound
 --   randomised.
 unsafeRandomShuffleN :: (PrimMonad m, Unbox a) => Int -> Bag m a -> m (Vector a)
 unsafeRandomShuffleN m (Bag g r mv) = do
-  n <- readPRef r
+  n <- readByteArray r 0
   let n' = max n m
   for 0 n' $ \nn -> do
     i <- uniformR (n, nn) g
@@ -294,26 +294,27 @@ replace bag@(Bag _ _ mv) a b = do
 --   fixed soon.
 insert :: (PrimMonad m, Unbox a) => Bag m a -> a -> m ()
 insert (Bag _ r v) a = do
-  n <- readPRef r
+  n <- readByteArray r 0
   when (n > M.length v) $ error "insert: Bag not large enough!"
   -- TODO figure out a nice way to grow the vector
 
   M.write v n a
-  plusOne r
+  writeByteArray r 0 (n + 1)
 
 -- immutable -----------------------------------------------------------
 
--- | Freeze a bag to retreive it's internal vector.
+-- | Freeze a bag to retreive it's internal vector by copying it.
 freezeBag :: (PrimMonad m, Unbox a) => Bag m a -> m (V.Vector a)
 freezeBag (Bag _ r v) = do
-  n <- readPRef r
+  n <- readByteArray r 0
   let v' = M.take n v
   V.freeze v'
 
--- | Freeze a bag to retreive it's internal vector.
+-- | Freeze a bag to retreive it's internal vector without copying it.
+--   Any modifications to the original bag are unsafe.
 unsafeFreezeBag :: (PrimMonad m, Unbox a) => Bag m a -> m (V.Vector a)
 unsafeFreezeBag (Bag _ r v) = do
-  n <- readPRef r
+  n <- readByteArray r 0
   let v' = M.slice 0 n v
   V.unsafeFreeze v'
 
@@ -323,7 +324,9 @@ thawBag :: (PrimMonad m, Generator g m, Unbox a) => g -> Double -> V.Vector a ->
 thawBag g x v = do
   m  <- V.thaw v
   m' <- M.grow m $ ceiling (fromIntegral (V.length v) * x + 10)
-  r  <- newPRef $ V.length v
+  let n = V.length v
+  r  <- newByteArray $ sizeOf n
+  writeByteArray r 0 n
   return $! Bag g r m'
 
 -- ------------------------------------------------------------------------
@@ -337,7 +340,7 @@ thawBag g x v = do
 -- bagVector f (Bag r v) = f v <&> Bag r
 
 -- bagSize :: PrimMonad m => Bag (PrimState m) a -> m Int
--- bagSize (Bag r _) = readPRef r
+-- bagSize (Bag r _) = readByteArray 0 r
 
 -- | Simple for loop.  Counts from /start/ to /end/-1.
 for :: Monad m => Int -> Int -> (Int -> m ()) -> m ()
