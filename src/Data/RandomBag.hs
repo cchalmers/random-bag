@@ -167,10 +167,12 @@ data Modify a
 -- | Helper to only modify when @b@ is 'True'.
 modifyWhen :: Monad m => Bool -> m (Modify a) -> m (Modify a)
 modifyWhen b a = if b then a else return Keep
+{-# INLINE modifyWhen #-}
 
 -- | Helper to only modify when @b@ is 'False'.
 modifyUnless :: Monad m => Bool -> m (Modify a) -> m (Modify a)
 modifyUnless b a = if b then return Keep else a
+{-# INLINE modifyUnless #-}
 
 modify :: (PrimMonad m, Unbox a) => Bag m a -> (a -> Modify a) -> m ()
 modify b f = modifyM b (return . f)
@@ -188,9 +190,11 @@ modifyM bag f = liftM (const ()) . withRandom bag $
 
 alter :: (PrimMonad m, Unbox a) => Bag m a -> (a -> a) -> m ()
 alter bag f = modify bag (Modify . f)
+{-# INLINE alter #-}
 
 alterM :: (PrimMonad m, Unbox a) => Bag m a -> (a -> m a) -> m ()
 alterM bag f = modifyM bag (liftM Modify . f)
+{-# INLINE alterM #-}
 
 -- vectors -------------------------------------------------------------
 
@@ -200,6 +204,7 @@ alterM bag f = modifyM bag (liftM Modify . f)
 withVector :: (PrimMonad m, Unbox a, NFData b)
            => (Vector a -> b) -> Bag m a -> m b
 withVector f bag = (force . f) `liftM` unsafeFreezeBag bag
+{-# INLINE withVector #-}
 
 -- | Use the frozen underlying vector. This is useful for making use of
 --   vector's many functions. The result has to be forced to ensure
@@ -207,22 +212,26 @@ withVector f bag = (force . f) `liftM` unsafeFreezeBag bag
 withVectorM :: (PrimMonad m, Unbox a, NFData b)
             => (Vector a -> m b) -> Bag m a -> m b
 withVectorM f bag = unsafeFreezeBag bag >>= liftM force . f
+{-# INLINE withVectorM #-}
 
 -- | /O(n)/ Check if the bag contains an element.
 inBag :: (PrimMonad m, Unbox a, Eq a)
      => a -> Bag m a -> m Bool
 inBag a = withVector (V.elem a)
+{-# INLINE inBag #-}
 
 -- | /O(n)/ Check if the bag does not contain an element (inverse of 'elem').
 notInBag :: (PrimMonad m, Unbox a, Eq a)
      => a -> Bag m a -> m Bool
 notInBag a = withVector (V.notElem a)
+{-# INLINE notInBag #-}
 
 -- | /O(n)/ Yield 'Just' the first element matching the predicate or
 --   'Nothing' if no such element exists.
 find :: (PrimMonad m, Unbox a, NFData a)
      => (a -> Bool) -> Bag m a -> m (Maybe a)
 find f = withVector (V.find f)
+{-# INLINE find #-}
 -- this could be implimented without the need for @deepseq a@
 
 -- | /worst case O(n)/ Find the first element that matches the predicate
@@ -239,6 +248,7 @@ findModify bag@(Bag _ r mv) p f = do
         Remove   -> vRemove mv i n >> resize bag (n - 1)
         Modify b -> M.write mv i b
     Nothing -> return ()
+{-# INLINE findModify #-}
 
 -- | /O(n)/ Find the all elements that matche the predicate
 --   and modify them.
@@ -309,6 +319,7 @@ freezeBag (Bag _ r v) = do
   n <- readByteArray r 0
   let v' = M.take n v
   V.freeze v'
+{-# INLINE freezeBag #-}
 
 -- | Freeze a bag to retreive it's internal vector without copying it.
 --   Any modifications to the original bag are unsafe.
@@ -317,6 +328,7 @@ unsafeFreezeBag (Bag _ r v) = do
   n <- readByteArray r 0
   let v' = M.slice 0 n v
   V.unsafeFreeze v'
+{-# INLINE unsafeFreezeBag #-}
 
 -- | Thaw a vector with a `Generator` and initial increase factor for
 --   the internal vector. This allows inserting elements.
@@ -328,6 +340,7 @@ thawBag g x v = do
   r  <- newByteArray $ sizeOf n
   writeByteArray r 0 n
   return $! Bag g r m'
+{-# INLINE thawBag #-}
 
 -- ------------------------------------------------------------------------
 -- -- Internal
